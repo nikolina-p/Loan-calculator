@@ -1,0 +1,428 @@
+#created on: Sep 12, 2008
+package Pravila
+import DomenskeKlase.*;
+import java.io.*;
+#list any import classes here.
+
+
+
+#declare any global variables here
+
+//30 pravila
+
+
+rule ST1
+ruleflow-group "prva"
+salience 7000
+	when
+		z : Zahtev(stanje == true, komitent.drzavljaninRS == false, pravila not contains "ST1" )
+	then 
+		z.setStanje(false);
+		System.out.println("ST1");
+		update(z);
+		z.setPravila("ST1");
+		z.getIzvestaj().addPoruka("Stambeni kreditise ne daju stranim drzavljanima",0);
+end  //radi
+
+rule ST2
+ruleflow-group "prva"
+salience 6000
+	when
+		z : Zahtev( stanje == true, komitent .starost < 23, pravila not contains "ST2" )
+	then 
+		z.setStanje(false);
+		System.out.println("ST2");
+		update(z);
+		z.setPravila("ST2");
+		z.getIzvestaj().addPoruka("Stambeni krediti su namenjeni klijentima starijim od 23 godine.",0);		
+end //radi
+
+rule ST3
+ruleflow-group "prva"
+when
+	z: Zahtev( stanje == true, komitent .duzinaPoslovanja < 60 && komitent.zanimanje in ("PREDUZETNIK","POLJOPRIVREDNIK") )
+then
+	modify(z){
+		setStanje(false),
+		setPravila("ST3"),
+		getIzvestaj().addPoruka("Podnosioci zahteva koji su privatni preduzetnici ili agro klijenti treba da vode svoje poslovanje najmanje 5 godina",0)
+	}
+	System.out.println("ST3");
+end   //radi
+
+rule ST4
+ruleflow-group "prva"
+when
+	z: Zahtev( stanje ==  true, komitent .duzinaPoslovanja < 6 && komitent.zanimanje == "ZAPOSLEN" )
+then
+	modify(z){
+		setStanje(false),
+		setPravila("ST4"),
+		getIzvestaj().addPoruka("Ako je podnosilac zahteva zaposleni, onda mora da ima stabilna, redovna primanja od istog poslodavca najmanje 6 meseci.",0)
+		}
+	System.out.println("ST4");
+end  //radi
+
+rule ST5
+ruleflow-group "prva"
+when
+	z: Zahtev( stanje == true , kredit .osiguranjeNKOSK == true && komitent.starost >45, pravila not contains "ST5"  )
+then
+	modify(z){
+		setStanje(false),
+		setPravila("ST4"),
+		getIzvestaj().addPoruka("Ukoliko podnosilac zahteva zeli osiguranje kod NKOSK njegova starost u vreme podnosenja zahteva ne sme biti iznad 45 godina.",0)
+	}
+	System.out.println("ST5");
+end  //radi
+
+rule ST6
+ruleflow-group "prva"
+when
+	z: Zahtev( stanje == true, kredit .iznosKredita > 16000000, pravila not contains "ST6")
+then
+	modify(z){
+		setStanje(false),
+		setPravila("ST6"),
+		getIzvestaj().addPoruka("Maksimalan iznos kredita je 200000eur.",0)	
+	}
+	System.out.println("ST6");
+end //radi
+
+rule ST66
+ruleflow-group "prva"
+when
+	z: Zahtev( stanje == true, kredit .iznosKredita <40000, pravila not contains "ST66" )
+then
+	modify(z){
+		setStanje(false),
+		setPravila("ST66"),
+		getIzvestaj().addPoruka("Minimalni iznos za stambene kredite je 500eur", 0)
+	}
+	System.out.println("ST66");
+end
+//.............................................................
+rule ST7
+ruleflow-group "FinansijskaMogucnost"
+salience 5000
+when
+	z: Zahtev(kredit .osiguranjeNKOSK == false && komitent.zanimanje in ("ZAPOSLEN", "PENZIONER"), pravila not contains "ST7" )
+then
+	z.getKomitent().setStopaZaduzenosti(0.3);
+	z.setPravila("ST7");
+	update(z);	
+	System.out.println("ST7");
+end //radi
+
+
+rule ST8
+ruleflow-group "FinansijskaMogucnost"
+salience 5000
+when
+	z: Zahtev( kredit .osiguranjeNKOSK == true && komitent.zanimanje in ("ZAPOSLEN", "PENZIONER"), pravila not contains "ST8" )	
+then
+	z.getKomitent().setStopaZaduzenosti(0.5);
+	z.setPravila("ST8");
+	z.getIzvestaj().addPoruka("Ukoliko je podnosilac zahteva zaposleni ili penzioner, a zeli osiguranje kod NIKOSK njegova maksimalna stopa zaduzenosti je 0.5",2);
+	update(z);	
+	System.out.println("ST8");
+end //radi
+
+rule ST9
+ruleflow-group "FinansijskaMogucnost"
+salience 5000
+when
+	z: Zahtev( komitent.zanimanje in("PREDUZETNIK", "POLJOPRIVREDNIK"), pravila not contains "ST9" )
+then
+	z.getKomitent().setStopaZaduzenosti(0.5);
+	z.setPravila("ST9");
+	update(z);	
+	System.out.println("ST9");
+end  //radi
+
+rule ST15
+ruleflow-group "FinansijskaMogucnost"
+when
+	z:Zahtev( pravila not contains "ST15", komitent .stopaZaduzenosti != 0)
+then
+	modify (z){
+		getKomitent().setFinansijskaMogucnost(z.getKomitent().vratiFinMogucnost()),		
+		getIzvestaj().addPoruka("Mesecna finansijske mogucnosti komitenta je "+z.getKomitent().getFinansijskaMogucnost(),2),
+		setPravila("ST15")
+		}		
+		System.out.println("ST15");	
+end  //radi
+//............................................................................
+rule ST10
+ruleflow-group "RokoviOtplate"
+salience 5000
+when
+	z: Zahtev( kredit .osiguranjeNKOSK == true && pravila not contains "ST10")
+then
+	modify(z){
+		getKredit().setMaxRokOtplate(24),
+		getKredit().setGrejsPeriod(1),
+		getIzvestaj().addPoruka("Maksimalni rok otplate za kredite osigurane kod NKOSK je 24god+1god grejs period",2),
+		setPravila("ST10")
+	}
+	System.out.println("ST10");
+end
+
+rule ST11
+ruleflow-group "RokoviOtplate"
+salience 5000
+when
+	z: Zahtev( kredit.osiguranjeNKOSK == false && pravila not contains "ST11")
+then
+	modify(z){
+		getKredit().setMaxRokOtplate(20),
+		getKredit().setGrejsPeriod(1),
+		getIzvestaj().addPoruka("Maksimalni rok otplate je 20god+1god grejs period",2),
+		setPravila("ST11")
+	}
+	System.out.println("ST11");
+end
+
+rule ST12
+ruleflow-group "RokoviOtplate"
+salience 2000
+when
+	z: Zahtev( $zelj: kredit .zeljeniRokOtpalte , kredit .maxRokOtplate (!=0 && < $zelj), pravila not contains "ST12" )
+then
+	modify(z){
+		setStanje(false),
+		setPravila("ST12"),
+		getIzvestaj().addPoruka("Zeljeni rok otplate prevazilazi maksimalni moguci.",0)
+	}
+	System.out.println("ST12");
+end  //radi
+
+rule ST13
+ruleflow-group "RokoviOtplate"
+salience 2000
+when
+	z: Zahtev( $zelj: kredit .zeljeniRokOtpalte , kredit.maxRokOtplate (!=0 && >= $zelj), pravila not contains "ST13" )
+then
+	modify (z){
+		getKredit().setRokOtplateGod(z.getKredit().getZeljeniRokOtpalte()),
+		setPravila("ST13"),
+		getIzvestaj().addPoruka("Rok otplate potvrdjen.", 2)
+	}
+	System.out.println("ST13");
+end  //radi
+
+rule ST14
+ruleflow-group "RokoviOtplate"
+when
+	z: Zahtev( $rok: kredit .rokOtplateGod, komitent .starost > (65-$rok), pravila not contains "ST14" )
+then
+	modify(z){
+		setStanje(false),
+		getIzvestaj().addPoruka("U vreme otplate poslednjeg anuiteta podnosilac zahteva ne sme biti stariji od 65 godina",0),
+		setPravila("ST14")
+	}
+	System.out.println("ST14");
+end  //radi
+//.....................................................................................
+
+rule ST16
+ruleflow-group "rizik"
+	when
+		z : Zahtev(stanje  == true && komitent .mesecniPrihod <= 32000)
+	then
+		z.setGrupaR(4);
+		z.getIzvestaj().addPoruka("Mesecni prihod :: grupa C",2);
+		System.out.println("ST16");
+		
+end
+
+rule ST17
+ruleflow-group "rizik"
+	when
+		z : Zahtev(stanje == true && komitent .mesecniPrihod (> 32000 && <=80000))
+	then
+		z.setGrupaR(2);
+		z.getIzvestaj().addPoruka("Mesecni prihod :: grupa B",2);
+		System.out.println("ST17");
+		
+end
+
+rule ST18
+ruleflow-group "rizik"
+	when
+		z : Zahtev(stanje  == true && komitent .mesecniPrihod > 80000 )
+	then
+		z.setGrupaR(0);
+		z.getIzvestaj().addPoruka("Mesecni prihod :: grupa A",2);
+		System.out.println("ST18");
+		
+end
+							//KASNJENJE
+rule ST19
+ruleflow-group "rizik"
+	when
+		z : Zahtev(stanje == true && komitent.ukupnoKasnjenjeIsplate == 0)
+	then
+		z.setGrupaR(0);
+		z.getIzvestaj().addPoruka("Klijent bez kasnjenja", 2);
+		System.out.println("ST19");
+	
+end							
+
+rule ST20
+ruleflow-group "rizik"
+	when
+		z : Zahtev(stanje == true && komitent.ukupnoKasnjenjeIsplate (<15 && >0))
+	then
+		z.setGrupaR(2);
+		z.getIzvestaj().addPoruka("Klijent kasnjenje do 15 dana",2);
+		System.out.println("ST20");
+		
+end							
+
+rule ST21
+ruleflow-group "rizik"
+	when
+		z : Zahtev(stanje == true && komitent.ukupnoKasnjenjeIsplate (>15 && <30))
+	then
+		z.setGrupaR(4);
+		z.getIzvestaj().addPoruka("Klijent kasnjenje 15-30 dana",2);
+		System.out.println("ST21");
+		
+end							
+
+rule ST22
+ruleflow-group "rizik"
+	when
+		z : Zahtev(stanje == true && komitent.ukupnoKasnjenjeIsplate >30)
+	then
+		z.setStanje(false);
+		z.getIzvestaj().addPoruka("Zbog velikih kasnjenja u isplati predhodnih kredita zahtev se odbija", 0);
+		System.out.println("ST22");
+		update(z);
+end
+				//STAROST
+				
+rule ST23
+ruleflow-group "rizik"
+	when
+		z : Zahtev(komitent .starost  (>18 && < 25 || >45))
+	then
+		z.setGrupaR(4);
+		z.getIzvestaj().addPoruka("Starost klijenta :: C grupa",2);
+		System.out.println("ST23");
+		
+end	
+
+rule ST24
+ruleflow-group "rizik"
+	when
+		z : Zahtev(komitent.starost (>25 && <30 || >40 && <45))
+	then
+		z.setGrupaR(2);
+		z.getIzvestaj().addPoruka("Starost klijenta :: B grupa",2);
+		System.out.println("ST24");
+		
+end
+	
+rule ST25
+ruleflow-group "rizik"
+when
+	z : Zahtev(komitent.starost (>30 && <40))
+then
+	z.setGrupaR(0);
+	z.getIzvestaj().addPoruka("Starost klijenta :: A grupa",2);
+	System.out.println("ST25");
+end
+
+rule ST26
+ruleflow-group "rizik"
+	when
+		z : Zahtev(komitent.klijentBanke == true)
+	then
+		z.setGrupaR(-2);
+		z.getIzvestaj().addPoruka("Popust za klijente banke",2);
+		System.out.println("ST26");
+end
+
+rule ST31
+ruleflow-group "rizik"
+when
+	z: Zahtev( komitent.duzinaStanovanjaNaIstomMestu < 2 )
+then
+	z.setGrupaR(4);
+	z.getIzvestaj().addPoruka("Duzina stanovanja na istom mestu do 2 godina. Visok rizik.",2);
+	System.out.println("ST31");
+end
+
+rule ST32
+ruleflow-group "rizik"
+when
+	z : Zahtev( komitent.duzinaStanovanjaNaIstomMestu (<4 && >2) )
+then
+	z.setGrupaR(2);
+	z.getIzvestaj().addPoruka("Duzina stanovanja na istom mestu od 2 do 4 godine. B grupa rizika.",2);
+end
+
+rule ST33
+ruleflow-group "rizik"
+when
+	z: Zahtev( komitent.duzinaStanovanjaNaIstomMestu >4 )
+then
+	z.setGrupaR(0);
+	z.getIzvestaj().addPoruka("Duzina stanovanja na istom mestu duza od 4 godine. Grupa rizika A",2);
+end
+//.........................................................................	
+rule ST27
+ruleflow-group "SredstvaObezbedjenja"
+when
+	z: Zahtev( kredit .osiguranjeNKOSK == true, pravila not contains "ST27" )
+then
+	modify(z){
+	
+		getKredit().setDepozit(0.05),
+		getIzvestaj().addPoruka("Za kredite osigurane kod NKOSK potreban depozit od 5%",2),
+		setPravila("ST27")
+		}
+		System.out.println("ST27");
+end
+
+rule ST28
+ruleflow-group "SredstvaObezbedjenja"
+when
+	z: Zahtev( kredit .osiguranjeNKOSK == false, pravila not contains "ST28" )
+then
+	modify(z){
+		getKredit().setDepozit(0.15),
+		getKredit().setZirant(true),
+		getIzvestaj().addPoruka("Za kredite koji nisu osigurani kod NKOSK potreban depozit 15%.",2),
+		setPravila("ST28")
+	}
+	System.out.println("ST28");
+end
+
+rule ST29
+ruleflow-group "SredstvaObezbedjenja"
+when
+	z: Zahtev( $fin : komitent .finansijskaMogucnost, kredit .mesRata (!=0 && >$fin), pravila not contains "ST29"  )
+then
+	modify(z){
+		setStanje(false),
+		getIzvestaj().addPoruka("Mesecno raspoloziva finansijska sredstva nisu dovoljna za pokrice rate kredita",0),
+		setPravila("ST29")
+	}
+	System.out.println("ST29");
+end
+
+rule ST30
+ruleflow-group "SredstvaObezbedjenja"
+when
+	z: Zahtev(pravila not contains "ST30")
+then
+	modify(z){
+		getKredit().setHipo(1.0),
+		setPravila("ST30"),
+		getIzvestaj().addPoruka("Dovoljna je hipoteka na nekretninu koja se kupuje ili gradi.",2)
+	}
+	System.out.println("ST30");
+end
